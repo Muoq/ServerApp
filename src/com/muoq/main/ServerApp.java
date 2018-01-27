@@ -1,5 +1,8 @@
 package com.muoq.main;
 
+import com.muoq.main.util.InputReceiver;
+import com.muoq.main.util.InputScanner;
+
 import javax.net.ssl.*;
 import java.io.*;
 import java.security.*;
@@ -8,14 +11,23 @@ import java.security.cert.CertificateException;
 public class ServerApp {
 
     static final int PORT = 8080;
+    static final String STORE_PATH = "/keystore/serverstore.pks";
 
     SSLContext sslContext;
-    char[] keystorepass = "victor1406".toCharArray();
+    char[] keystorepass = "victor".toCharArray();
+
+    InputScanner inputScanner;
+
+    public ServerApp() {
+        inputScanner = new InputScanner();
+        Thread scannerThread = new Thread(inputScanner);
+        scannerThread.start();
+    }
 
     private void setupNetworking() {
         try {
             KeyStore ks = KeyStore.getInstance("PKCS12");
-            ks.load(new FileInputStream("C:\\Users\\victo\\.keystore\\selfsigned.pks"), keystorepass);
+            ks.load(getClass().getResourceAsStream(STORE_PATH), keystorepass);
 
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             kmf.init(ks, keystorepass);
@@ -58,6 +70,7 @@ public class ServerApp {
     class NewConnectionListener implements Runnable {
 
         public void run() {
+            System.out.println("Listening for new connections...");
 
             SSLServerSocketFactory sslServerSocketFactory = sslContext.getServerSocketFactory();
             try {
@@ -77,7 +90,7 @@ public class ServerApp {
     }
 
 
-    class NewClient implements Runnable {
+    class NewClient implements Runnable, InputReceiver {
 
         SSLSocket sslSocket;
         PrintWriter writer;
@@ -91,22 +104,28 @@ public class ServerApp {
             try {
                 writer = new PrintWriter(sslSocket.getOutputStream());
                 reader = new BufferedReader(new InputStreamReader(sslSocket.getInputStream()));
-                System.out.println("reader instantiated");
             } catch (IOException e) {
                 e.printStackTrace();
             }
+
+            inputScanner.addInputReceiver(this);
         }
 
         private void handleMessage(String message) {
             System.out.println("Message received: " + message);
-            writer.println("Hello. This is what you wrote me: " + message + ".");
+            writer.println("Bounce-back: " + message);
+            writer.flush();
+        }
+
+        public void receive(String message) {
+            writer.println("Serve: " + message);
+            writer.flush();
         }
 
         public void run() {
             String message;
 
             try {
-                System.out.println("reading");
                 while ((message = reader.readLine()) != null) {
                     handleMessage(message);
                 }
