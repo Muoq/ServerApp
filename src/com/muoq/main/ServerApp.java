@@ -5,13 +5,19 @@ import com.muoq.main.util.InputScanner;
 
 import javax.net.ssl.*;
 import java.io.*;
+import java.net.SocketException;
 import java.security.*;
 import java.security.cert.CertificateException;
 
 public class ServerApp {
 
+// ************************************
+    static final boolean DEBUG = true;
+// ************************************
+
     static final int PORT = 8080;
     static final String STORE_PATH = "/keystore/serverstore.pks";
+    static final char NUL = (char) 0;
 
     SSLContext sslContext;
     char[] keystorepass = "victor".toCharArray();
@@ -60,6 +66,19 @@ public class ServerApp {
         NewConnectionListener newConnectionListener = new NewConnectionListener();
         Thread newConnectionThread = new Thread(newConnectionListener);
         newConnectionThread.start();
+
+
+        if (DEBUG) {
+            test();
+        }
+    }
+
+    private void test() {
+        String cmdMsg = "VPC" + NUL + "cmd" + NUL + "-hr --hello" + NUL + NUL;
+        CommandParser cp = new CommandParser(cmdMsg);
+        System.out.printf("id: %s\ncmd: %s\nflags: %s\n", cp.getId(), cp.getCmd(), cp.getFlags());
+
+        System.exit(0);
     }
 
     public static void main(String[] args) {
@@ -128,6 +147,18 @@ public class ServerApp {
             try {
                 while ((message = reader.readLine()) != null) {
                     handleMessage(message);
+                }
+
+            } catch (SocketException e) {
+                System.out.printf("Client %s disconnected from port %d", sslSocket.getInetAddress(), sslSocket.getPort());
+
+                try {
+                    sslSocket.close();
+                    reader.close();
+                    writer.close();
+
+                } catch (IOException e1) {
+                    e1.printStackTrace();
                 }
 
             } catch (IOException e) {
