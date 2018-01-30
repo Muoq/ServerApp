@@ -9,7 +9,6 @@ import java.io.*;
 import java.net.SocketException;
 import java.security.*;
 import java.security.cert.CertificateException;
-import java.util.Scanner;
 
 public class ServerApp {
 
@@ -17,7 +16,7 @@ public class ServerApp {
     static final boolean DEBUG = true;
 // ************************************
 
-    static final int PORT = 8080;
+    static final int PORT = 14000;
     static final String STORE_PATH = "/keystore/serverstore.pks";
     static final char NUL = (char) 0;
 
@@ -132,14 +131,22 @@ public class ServerApp {
         }
 
         private void handleMessage(String message) {
-            System.out.println("Message received: " + message.replace(String.valueOf(NUL), "(NUL)"));
-            message = CommandParser.escapeString(message);
+            if (DEBUG) {
+                System.out.println("Message received: " + message.replace(String.valueOf(NUL), "(NUL)"));
+                message = CommandParser.escapeString(message);
+            }
+
             String launcherOutput;
             CommandParser cp = new CommandParser(message);
             if (cp.isParseSuccess()) {
                 launcherOutput = CommandLauncher.launch(cp.getCmd(), cp.getFlags());
-                writer.print(launcherOutput + "\n");
-                writer.flush();
+                if (launcherOutput != null) {
+                    writer.print(launcherOutput);
+                    writer.flush();
+                } else {
+                    writer.println("Invalid command-message");
+                    writer.flush();
+                }
             } else {
                 writer.println("Invalid command-message.");
                 writer.flush();
@@ -147,7 +154,7 @@ public class ServerApp {
         }
 
         public void receive(String message) {
-            writer.println("Serve: " + message);
+            writer.println(message);
             writer.flush();
         }
 

@@ -19,10 +19,9 @@ public class CommandLauncher {
 
     public static void initCommandItems() {
 
-        File indexFile = new File(CommandLauncher.class.getResource(indexFilePath).getFile());
+        InputStream indexStream = CommandLauncher.class.getResourceAsStream(indexFilePath);
 
         try {
-            FileInputStream indexStream = new FileInputStream(indexFile);
             BufferedReader reader = new BufferedReader(new InputStreamReader(indexStream));
 
             String line;
@@ -54,7 +53,8 @@ public class CommandLauncher {
         flags = (flags == null) ? "" : flags;
         String processOut = "";
 
-        ProcessBuilder pb = new ProcessBuilder("cmd.exe", "/c", commandItems.get(command), flags);
+        ProcessBuilder pb = new ProcessBuilder("/bin/bash", "-c", commandItems.get(command) + " " + flags);
+
         try {
             Process process = pb.start();
             InputStream processInputStream = process.getInputStream();
@@ -64,14 +64,13 @@ public class CommandLauncher {
             while ((line = reader.readLine()) != null) {
                 processOut += line + "\n";
             }
-            System.out.println("after while");
 
             return processOut;
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        return processOut;
+        return null;
     }
 
     public static String launch(String command) {

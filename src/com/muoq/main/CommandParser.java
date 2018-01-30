@@ -48,30 +48,30 @@ public class CommandParser {
             }
 
             if (sectionsDone == 0) {
+
                 id += charAtI;
+
             } else if (sectionsDone == 1) {
+
+                cmd += charAtI;
+
+            } else if (sectionsDone == 2) {
+
+                flags += charAtI;
+
+            } else if (sectionsDone == 4) {
+
                 if (id.length() < ID_MIN) {
                     nullAll();
                     System.out.println("Invalid cmd-msg: client id too short.");
                     return;
                 }
-
-                cmd += charAtI;
-
                 if (cmd.length() > CMD_MAX) {
                     nullAll();
                     System.out.println("Invalid cmd-msg: command identifier too long.");
                     return;
                 }
-            } else if (sectionsDone == 2) {
-                if (cmd.length() < CMD_MIN) {
-                    nullAll();
-                    System.out.println("Invalid cmd-msg: command identifier too short.");
-                    return;
-                }
 
-                flags += charAtI;
-            } else if (sectionsDone == 4) {
                 isParseSuccessful = true;
                 return;
             }
@@ -84,14 +84,40 @@ public class CommandParser {
         flags = null;
     }
 
-    public static String escapeStringSimple(String unescaped) {
+    public static String escapeString(String unescaped) {
+//          NON ESCAPED CHARACTERS
+//        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r',
+//        's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '.', '_', '-', '+', '@',
+//        ':', '/', '%', '~', NUL
+
+        List<Character> allowedChars = new ArrayList<>();
+        List<Integer> asciiDec = new ArrayList<>();
+        for (int i = 43; i < 59; i++) {
+            asciiDec.add(i);
+        }
+        for (int i = 64; i < 91; i++) {
+            asciiDec.add(i);
+        }
+        for (int i = 97; i < 123; i++) {
+            asciiDec.add(i);
+        }
+        asciiDec.add(0);
+
+        for (int asciiDecimalCode : asciiDec) {
+            allowedChars.add((char) asciiDecimalCode);
+        }
+        allowedChars.add('_');
+        allowedChars.add('%');
+        allowedChars.add('\\');
+
         String escapee = unescaped;
         List<Character> charsInString = new ArrayList<>();
 
-        int length = escapee.length();
-        for (int i = 0; i < length; i++) {
-            if (!charsInString.contains(escapee.charAt(i)) && escapee.charAt(i) != '\\') {
-                charsInString.add(escapee.charAt(i));
+        for (int i = 0; i < escapee.length(); i++) {
+            char charAtI = escapee.charAt(i);
+
+            if (!charsInString.contains(charAtI) && !allowedChars.contains(charAtI)) {
+                charsInString.add(charAtI);
             }
         }
 
@@ -99,39 +125,9 @@ public class CommandParser {
         for (Character character : charsInString) {
             escapee = escapee.replace(character.toString(), "\\" + character.toString());
         }
+        escapee = escapee.replace("\\ ", " ");
 
         return escapee;
-    }
-
-    public static String unescapeString(String escaped) {
-        char[] nonEscape = new char[] {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r',
-            's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '.', '_', '-', '+', '@',
-            ':', '/', '%', (char) 0};
-        List<Character> nonEscapeList = new ArrayList<>();
-        for (char character : nonEscape) {
-            nonEscapeList.add(character);
-        }
-
-        String unescapee = escaped;
-        List<Character> charsInString = new ArrayList<>();
-
-        int length = unescapee.length();
-        for (int i = 0; i < length; i++) {
-            if (!charsInString.contains(unescapee.charAt(i)) && nonEscapeList.contains(unescapee.charAt(i))) {
-                charsInString.add(unescapee.charAt(i));
-            }
-        }
-
-        for (Character character : charsInString) {
-            unescapee = unescapee.replace("\\" + character.toString(), character.toString());
-        }
-        unescapee = unescapee.replace("\\ ", " ");
-
-        return unescapee;
-    }
-
-    public static String escapeString(String unescaped) {
-        return unescapeString(escapeStringSimple(unescaped));
     }
 
     public boolean isParseSuccess() {return isParseSuccessful;}
