@@ -1,5 +1,6 @@
 package com.muoq.main;
 
+import com.muoq.main.util.CommandLauncher;
 import com.muoq.main.util.InputReceiver;
 import com.muoq.main.util.InputScanner;
 
@@ -8,6 +9,7 @@ import java.io.*;
 import java.net.SocketException;
 import java.security.*;
 import java.security.cert.CertificateException;
+import java.util.Scanner;
 
 public class ServerApp {
 
@@ -25,6 +27,8 @@ public class ServerApp {
     InputScanner inputScanner;
 
     public ServerApp() {
+        CommandLauncher.initCommandItems();
+
         inputScanner = new InputScanner();
         Thread scannerThread = new Thread(inputScanner);
         scannerThread.start();
@@ -65,20 +69,17 @@ public class ServerApp {
         setupNetworking();
         NewConnectionListener newConnectionListener = new NewConnectionListener();
         Thread newConnectionThread = new Thread(newConnectionListener);
+        newConnectionThread.setName("ClientAcceptThread");
         newConnectionThread.start();
 
 
         if (DEBUG) {
+            System.out.println("DEBUG = ON");
             test();
         }
     }
 
     private void test() {
-        String cmdMsg = "VPC" + NUL + "cmd" + NUL + "-hr --hello" + NUL + NUL;
-        CommandParser cp = new CommandParser(cmdMsg);
-        System.out.printf("id: %s\ncmd: %s\nflags: %s\n", cp.getId(), cp.getCmd(), cp.getFlags());
-
-        System.exit(0);
     }
 
     public static void main(String[] args) {
@@ -131,9 +132,18 @@ public class ServerApp {
         }
 
         private void handleMessage(String message) {
-            System.out.println("Message received: " + message);
-            writer.println("Bounce-back: " + message);
-            writer.flush();
+            System.out.println("Message received: " + message.replace(String.valueOf(NUL), "(NUL)"));
+            message = CommandParser.escapeString(message);
+            String launcherOutput;
+            CommandParser cp = new CommandParser(message);
+            if (cp.isParseSuccess()) {
+                launcherOutput = CommandLauncher.launch(cp.getCmd(), cp.getFlags());
+                writer.print(launcherOutput + "\n");
+                writer.flush();
+            } else {
+                writer.println("Invalid command-message.");
+                writer.flush();
+            }
         }
 
         public void receive(String message) {
@@ -150,7 +160,7 @@ public class ServerApp {
                 }
 
             } catch (SocketException e) {
-                System.out.printf("Client %s disconnected from port %d", sslSocket.getInetAddress(), sslSocket.getPort());
+                System.out.printf("Client %s disconnected from port %d\n", sslSocket.getInetAddress(), sslSocket.getPort());
 
                 try {
                     sslSocket.close();
