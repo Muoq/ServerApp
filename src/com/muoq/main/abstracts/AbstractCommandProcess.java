@@ -1,69 +1,58 @@
-package com.muoq.main.util;
+package com.muoq.main.abstracts;
 
-import com.muoq.main.CommandParser;
+import com.muoq.main.ServerApp;
 
-import javax.net.ServerSocketFactory;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class CommandProcess {
+public abstract class AbstractCommandProcess {
 
     static String indexFilePath = "/index/cmd-launch-index";
-
-    private static List<CommandProcess> runningProcesses = new ArrayList<>();
 
     /* 0:th element is reserved for system level commands
     1:th element is reserved for sender-id
     2:th element element is reserved for command-id
     3:th element is reserved for potential flags for command
      */
-    private static Map<String, String> commandItems = new HashMap<>();
+    protected static Map<String, String> commandItems = new HashMap<>();
 
-    private String bin;
-    private String command, flags;
+    protected String bin;
+    protected String command, flags;
     ProcessBuilder processBuilder;
 
-    ProgramInterface programInterface;
+    protected AbstractProgramInterface programInterface;
 
-    public CommandProcess(String command, String flags) {
+    protected List<ServerApp.Client> clientList;
+
+    protected AbstractCommandProcess(String command, String flags) {
         initCommandItems();
 
         this.command = command;
-        this.flags = (flags == null) ? "" : flags;
-        processBuilder = new ProcessBuilder("cmd.exe", "/c", commandItems.get(command), this.flags);
+        this.flags = (flags == null) ? "" : " " + flags;
+        processBuilder = new ProcessBuilder("/bin/bash", "-c", commandItems.get(command) + this.flags);
 
         bin = commandItems.get(command);
 
+        clientList = new ArrayList<>();
     }
 
-//    public static CommandProcess getInstance(String command, String flags) {
-//        initCommandItems();
-//
-//        boolean isAlreadyRunning = false;
-//
-//        for (CommandProcess runningProcess : runningProcesses) {
-//            if (runningProcess.bin == commandItems.get(command)) {
-//                isAlreadyRunning = true;
-//            }
-//        }
-//
-//        if (isAlreadyRunning) {
-//            return null;
-//        } else {
-//            CommandProcess processObject = new CommandProcess(command, flags);
-//
-//        }
-//    }
+    public static boolean isValidCommand(String command) {
+        if (commandItems.isEmpty())
+            initCommandItems();
 
-    private static void initCommandItems() {
+        return commandItems.containsKey(command);
+    }
 
-        InputStream indexStream = CommandProcess.class.getResourceAsStream(indexFilePath);
+    protected static void initCommandItems() {
+
+        InputStream indexStream = AbstractCommandProcess.class.getResourceAsStream(indexFilePath);
 
         try {
             BufferedReader reader = new BufferedReader(new InputStreamReader(indexStream));
@@ -87,21 +76,28 @@ public class CommandProcess {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
     }
 
-    private String launchInternal(ProcessBuilder pb) {
-        if (!commandItems.containsKey(command))
-            return null;
+    public static Map<String, String> getCommandItems() {
+        if (commandItems.isEmpty()) {
+            initCommandItems();
+            return commandItems;
+        } else {
+            return commandItems;
+        }
+    }
 
+    public String launch() {
         try {
-            Process process = pb.start();
+            Process process = processBuilder.start();
             InputStream processInputStream = process.getInputStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(processInputStream));
 
+            System.out.println(processBuilder.command());
             String processOut = "";
             String line;
             while ((line = reader.readLine()) != null) {
+                System.out.println("line: " + line);
                 processOut += line + "\n";
             }
 
@@ -113,38 +109,39 @@ public class CommandProcess {
         return null;
     }
 
-    public String launch() {
-        return launchInternal(processBuilder);
+    public void newFlags(String flags) {
+        this.flags = (flags == null) ? "" : " " + flags;
+        processBuilder = new ProcessBuilder("/bin/bash", "-c", bin + this.flags);
     }
 
-    public String launch(String command, String flags) {
-        flags = (flags == null) ? "" : flags;
-
-        ProcessBuilder pb = new ProcessBuilder("cmd.exe", "/c", commandItems.get(command), flags);
-
-        return launchInternal(pb);
+    public void addClient(ServerApp.Client client) {
+        clientList.add(client);
     }
 
-    public String launch(String command) {
-        return launch(command, null);
-    }
+    public static void printIndex() {
+        if (commandItems.isEmpty()) {
+            initCommandItems();
+        }
 
-    public void printIndex() {
         for (Map.Entry<String, String> item : commandItems.entrySet()) {
             System.out.println(item.getKey() + " | " + item.getValue());
         }
     }
 
-    private void handleInput(String input) {
+    protected void handleInput(String input) {
 
     }
 
-    private class ProgramInterface implements Runnable {
+    public String getBin() {
+        return bin;
+    }
+
+    protected abstract class AbstractProgramInterface implements Runnable {
 
         Socket localSocket;
         ServerSocket localServerSocket;
 
-        public ProgramInterface(int port) {
+        protected AbstractProgramInterface(int port) {
             try {
                 localServerSocket = new ServerSocket(port, 1, InetAddress.getLocalHost());
                 localSocket = localServerSocket.accept();

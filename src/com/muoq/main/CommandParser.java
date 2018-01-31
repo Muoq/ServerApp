@@ -1,5 +1,7 @@
 package com.muoq.main;
 
+import com.muoq.main.abstracts.AbstractCommandProcess;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,6 +14,7 @@ public class CommandParser {
     static final int CMD_MAX = 6;
 
     private boolean isParseSuccessful;
+    String error;
 
     private String id;
     private String cmd;
@@ -41,6 +44,13 @@ public class CommandParser {
                         nullAll();
                         return;
                     } else {
+
+                        if (!AbstractCommandProcess.isValidCommand(cmd)) {
+                            error = String.format("Command \'%s\' not found.", cmd);
+                            nullAll();
+                            return;
+                        }
+
                         isParseSuccessful = true;
                         return;
                     }
@@ -63,12 +73,20 @@ public class CommandParser {
 
                 if (id.length() < ID_MIN) {
                     nullAll();
+                    error = "Invalid cmd-msg";
                     System.out.println("Invalid cmd-msg: client id too short.");
                     return;
                 }
                 if (cmd.length() > CMD_MAX) {
                     nullAll();
+                    error = "Invalid cmd-msg.";
                     System.out.println("Invalid cmd-msg: command identifier too long.");
+                    return;
+                }
+
+                if (!AbstractCommandProcess.isValidCommand(cmd)) {
+                    error = String.format("Command \'%s\' not found.", cmd);
+                    nullAll();
                     return;
                 }
 
@@ -130,7 +148,13 @@ public class CommandParser {
         return escapee;
     }
 
-    public boolean isParseSuccess() {return isParseSuccessful;}
+    public boolean isParseSuccess() {
+        return isParseSuccessful;
+    }
+
+    public String getError() {
+        return error;
+    }
 
     public String getId() {
         return id;

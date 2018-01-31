@@ -1,6 +1,6 @@
 package com.muoq.main;
 
-import com.muoq.main.util.CommandProcess;
+import com.muoq.main.abstracts.AbstractCommandProcess;
 import com.muoq.main.util.InputReceiver;
 import com.muoq.main.util.InputScanner;
 
@@ -96,7 +96,7 @@ public class ServerApp {
 
                 while (true) {
                     SSLSocket sslSocket = (SSLSocket) sslServerSocket.accept();
-                    Thread newClientThread = new Thread(new NewClient(sslSocket));
+                    Thread newClientThread = new Thread(new Client(sslSocket));
                     newClientThread.start();
                 }
 
@@ -108,13 +108,13 @@ public class ServerApp {
     }
 
 
-    class NewClient implements Runnable, InputReceiver {
+    public class Client implements Runnable, InputReceiver {
 
         SSLSocket sslSocket;
         PrintWriter writer;
         BufferedReader reader;
 
-        public NewClient(SSLSocket sslSocket) {
+        public Client(SSLSocket sslSocket) {
             this.sslSocket = sslSocket;
 
             System.out.printf("Connected to client %s on port %d.\n", sslSocket.getInetAddress(), sslSocket.getPort());
@@ -138,16 +138,19 @@ public class ServerApp {
             String launcherOutput;
             CommandParser cp = new CommandParser(message);
             if (cp.isParseSuccess()) {
-                CommandProcess commandProcess = new CommandProcess(cp.getCmd(), cp.getFlags());
-
-                launcherOutput = commandProcess.launch();
-                if (launcherOutput != null) {
-                    writer.print(launcherOutput);
-                    writer.flush();
-                } else {
-                    writer.println(String.format("Command \'%s\' not found.", cp.getCmd()));
-                    writer.flush();
+                AbstractCommandProcess commandProcess = ExclusiveCommandProcess.getInstance(cp.getCmd(), cp.getFlags());
+                if (commandProcess == null) {
+                    commandProcess = ExclusiveCommandProcess.getExistingProcess(cp.getCmd());
+                    //the below line is only for testing REMOVE AFTERWARDS!
+                    commandProcess.newFlags(cp.getFlags());
                 }
+
+                //TODO: After testing, don't allow existing processes to launch more than once!
+                launcherOutput = commandProcess.launch();
+
+                writer.print(launcherOutput);
+                writer.flush();
+
             } else {
                 writer.println("Invalid command-message.");
                 writer.flush();
