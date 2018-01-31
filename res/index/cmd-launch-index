@@ -4,3 +4,4 @@
 3: echo | echo
 4: ls | ls
 5: code | /usr/local/bin/code
+6: dir | dir

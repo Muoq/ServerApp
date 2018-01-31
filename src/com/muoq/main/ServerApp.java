@@ -1,6 +1,6 @@
 package com.muoq.main;
 
-import com.muoq.main.util.CommandLauncher;
+import com.muoq.main.util.CommandProcess;
 import com.muoq.main.util.InputReceiver;
 import com.muoq.main.util.InputScanner;
 
@@ -26,7 +26,6 @@ public class ServerApp {
     InputScanner inputScanner;
 
     public ServerApp() {
-        CommandLauncher.initCommandItems();
 
         inputScanner = new InputScanner();
         Thread scannerThread = new Thread(inputScanner);
@@ -139,12 +138,14 @@ public class ServerApp {
             String launcherOutput;
             CommandParser cp = new CommandParser(message);
             if (cp.isParseSuccess()) {
-                launcherOutput = CommandLauncher.launch(cp.getCmd(), cp.getFlags());
+                CommandProcess commandProcess = new CommandProcess(cp.getCmd(), cp.getFlags());
+
+                launcherOutput = commandProcess.launch();
                 if (launcherOutput != null) {
                     writer.print(launcherOutput);
                     writer.flush();
                 } else {
-                    writer.println("Invalid command-message");
+                    writer.println(String.format("Command \'%s\' not found.", cp.getCmd()));
                     writer.flush();
                 }
             } else {
