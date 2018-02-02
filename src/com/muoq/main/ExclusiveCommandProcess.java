@@ -10,11 +10,11 @@ public class ExclusiveCommandProcess extends AbstractCommandProcess {
 
     private static Map<String, ExclusiveCommandProcess> existingExclusiveProcesses = new HashMap<>();
 
-    private ExclusiveCommandProcess(String command, String flags) {
-        super(command, flags);
+    private ExclusiveCommandProcess(ServerApp.Client client, String command, String flags) {
+        super(client, command, flags);
     }
 
-    public static ExclusiveCommandProcess getInstance(String command, String flags) throws InvalidParameterException {
+    public static ExclusiveCommandProcess getInstance(ServerApp.Client client, String command, String flags) throws InvalidParameterException {
         initCommandItems();
 
         if (!commandItems.containsKey(command)) {
@@ -27,14 +27,16 @@ public class ExclusiveCommandProcess extends AbstractCommandProcess {
             }
         }
 
-        ExclusiveCommandProcess processObject = new ExclusiveCommandProcess(command, flags);
+        ExclusiveCommandProcess processObject = new ExclusiveCommandProcess(client, command, flags);
         processObject.bin = commandItems.get(command);
         existingExclusiveProcesses.put(command, processObject);
         return processObject;
     }
 
-    public static ExclusiveCommandProcess getExistingProcess(String command) {
-        return existingExclusiveProcesses.get(command);
+    public static ExclusiveCommandProcess getExistingProcess(ServerApp.Client client, String command) {
+        ExclusiveCommandProcess existingProcess = existingExclusiveProcesses.get(command);
+        existingProcess.addClient(client);
+        return existingProcess;
     }
 
     //TODO: Override launch() and only permit it to run once

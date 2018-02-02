@@ -6,7 +6,6 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -14,6 +13,7 @@ import java.util.Map;
 
 public abstract class AbstractCommandProcess {
 
+    static int PORT = 14001;
     static String indexFilePath = "/index/cmd-launch-index";
 
     /* 0:th element is reserved for system level commands
@@ -27,20 +27,21 @@ public abstract class AbstractCommandProcess {
     protected String command, flags;
     ProcessBuilder processBuilder;
 
-    protected AbstractProgramInterface programInterface;
+    protected ProgramInterface programInterface;
 
     protected List<ServerApp.Client> clientList;
 
-    protected AbstractCommandProcess(String command, String flags) {
+    protected AbstractCommandProcess(ServerApp.Client client, String command, String flags) {
         initCommandItems();
 
         this.command = command;
         this.flags = (flags == null) ? "" : " " + flags;
-        processBuilder = new ProcessBuilder("/bin/bash", "-c", commandItems.get(command) + this.flags);
+        processBuilder = new ProcessBuilder("/bin/bash", "-c", commandItems.get(command) + " " + PORT + this.flags);
 
         bin = commandItems.get(command);
 
         clientList = new ArrayList<>();
+        clientList.add(client);
     }
 
     public static boolean isValidCommand(String command) {
@@ -89,6 +90,12 @@ public abstract class AbstractCommandProcess {
 
     public String launch() {
         try {
+
+            programInterface = new ProgramInterface();
+            Thread interfaceThread = new Thread(programInterface);
+            interfaceThread.setName("Inter Process Thread");
+            interfaceThread.start();
+
             Process process = processBuilder.start();
             InputStream processInputStream = process.getInputStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(processInputStream));
@@ -96,9 +103,13 @@ public abstract class AbstractCommandProcess {
             System.out.println(processBuilder.command());
             String processOut = "";
             String line;
-            while ((line = reader.readLine()) != null) {
+            while ((line = reader.readLine()) != null && !line.replace("\n", "").equals("CON")) {
                 System.out.println("line: " + line);
                 processOut += line + "\n";
+            }
+            reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+            while ((line = reader.readLine()) != null) {
+                System.out.println("Error: " + line);
             }
 
             return processOut;
@@ -115,7 +126,8 @@ public abstract class AbstractCommandProcess {
     }
 
     public void addClient(ServerApp.Client client) {
-        clientList.add(client);
+        if (!clientList.contains(client))
+            clientList.add(client);
     }
 
     public static void printIndex() {
@@ -132,26 +144,50 @@ public abstract class AbstractCommandProcess {
 
     }
 
+    public String sendCommand(String command) {
+        return programInterface.sendCommand(command);
+    }
+
     public String getBin() {
         return bin;
     }
 
-    protected abstract class AbstractProgramInterface implements Runnable {
+    protected class ProgramInterface implements Runnable {
 
         Socket localSocket;
-        ServerSocket localServerSocket;
+        PrintWriter writer;
 
-        protected AbstractProgramInterface(int port) {
+        public String sendCommand(String command) {
+            writer.println(command);
+            writer.flush();
+
             try {
-                localServerSocket = new ServerSocket(port, 1, InetAddress.getLocalHost());
-                localSocket = localServerSocket.accept();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(localSocket.getInputStream()));
+                String input;
+                StringBuilder builder = new StringBuilder();
+
+                while ((input = reader.readLine()) != null) {
+                    builder.append(input);
+                }
+
+                return builder.toString();
             } catch (IOException e) {
                 e.printStackTrace();
             }
+
+            return null;
         }
 
         public void run() {
             try {
+                ServerSocket localServerSocket = new ServerSocket(PORT);
+                localSocket = localServerSocket.accept();
+                localServerSocket.close();
+
+                writer = new PrintWriter(localSocket.getOutputStream());
+                writer.println("connect success!");
+                writer.flush();
+
                 BufferedReader reader = new BufferedReader(new InputStreamReader(localSocket.getInputStream()));
                 String input;
 

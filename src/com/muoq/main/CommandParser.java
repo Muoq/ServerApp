@@ -1,7 +1,9 @@
 package com.muoq.main;
 
 import com.muoq.main.abstracts.AbstractCommandProcess;
+import org.omg.CORBA.DynAnyPackage.Invalid;
 
+import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -10,28 +12,41 @@ public class CommandParser {
     static final char NUL = (char) 0;
 
     static final int ID_MIN = 3;
-    static final int CMD_MIN = 3;
+    static final int SECTIONS = 4;
     static final int CMD_MAX = 6;
 
     private boolean isParseSuccessful;
     String error;
 
+    private String sysCmd;
     private String id;
     private String cmd;
     private String flags;
 
     public CommandParser(String cmdMsg) {
+        sysCmd = "";
         id = "";
         cmd = "";
         flags = "";
+
         parse(cmdMsg);
     }
 
-    public void parse (String cmdMsg) {
+    private void parse(String cmdMsg)  {
         if (cmdMsg.length() == 0)
             return;
 
         isParseSuccessful = false;
+
+        String[] splitCmdMsg = cmdMsg.split(":");
+        if (splitCmdMsg.length == 1) {
+            error = "Invalid cmd-msg.";
+            return;
+        }
+
+        cmdMsg = splitCmdMsg[1];
+        sysCmd = splitCmdMsg[0];
+
         int sectionsDone = 0;
 
         char charAtI;
@@ -40,7 +55,7 @@ public class CommandParser {
                 sectionsDone++;
                 i++;
                 if (i >= cmdMsg.length()) {
-                    if (sectionsDone != 4) {
+                    if (sectionsDone != SECTIONS) {
                         nullAll();
                         return;
                     } else {
@@ -69,11 +84,11 @@ public class CommandParser {
 
                 flags += charAtI;
 
-            } else if (sectionsDone == 4) {
+            } else if (sectionsDone == SECTIONS) {
 
                 if (id.length() < ID_MIN) {
                     nullAll();
-                    error = "Invalid cmd-msg";
+                    error = "Invalid cmd-msg.";
                     System.out.println("Invalid cmd-msg: client id too short.");
                     return;
                 }
@@ -97,6 +112,7 @@ public class CommandParser {
     }
 
     private void nullAll() {
+        sysCmd = null;
         id = null;
         cmd = null;
         flags = null;
@@ -154,6 +170,10 @@ public class CommandParser {
 
     public String getError() {
         return error;
+    }
+
+    public String getSysCmd() {
+        return sysCmd;
     }
 
     public String getId() {

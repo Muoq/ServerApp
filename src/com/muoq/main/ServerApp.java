@@ -9,6 +9,8 @@ import java.io.*;
 import java.net.SocketException;
 import java.security.*;
 import java.security.cert.CertificateException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ServerApp {
 
@@ -19,6 +21,12 @@ public class ServerApp {
     static final int PORT = 14000;
     static final String STORE_PATH = "/keystore/serverstore.pks";
     static final char NUL = (char) 0;
+    static final String PROCESS_EXIST = "PAE:";
+    static final String LAUNCH_SUCCESS = "LSU:";
+    static final String PROCESS_NOT_EXIST = "PNE:";
+
+    static final String SYS_LAUNCH = "LCH";
+    static final String SYS_SEND_COMMAND = "SND";
 
     SSLContext sslContext;
     char[] keystorepass = "victor".toCharArray();
@@ -78,6 +86,9 @@ public class ServerApp {
     }
 
     private void test() {
+
+
+
     }
 
     public static void main(String[] args) {
@@ -110,6 +121,8 @@ public class ServerApp {
 
     public class Client implements Runnable, InputReceiver {
 
+        List<AbstractCommandProcess> runningProcesses;
+
         SSLSocket sslSocket;
         PrintWriter writer;
         BufferedReader reader;
@@ -126,6 +139,7 @@ public class ServerApp {
                 e.printStackTrace();
             }
 
+            runningProcesses = new ArrayList<>();
             inputScanner.addInputReceiver(this);
         }
 
@@ -135,24 +149,38 @@ public class ServerApp {
                 message = CommandParser.escapeString(message);
             }
 
-            String launcherOutput;
+            String launcherOutput = "";
             CommandParser cp = new CommandParser(message);
             if (cp.isParseSuccess()) {
-                AbstractCommandProcess commandProcess = ExclusiveCommandProcess.getInstance(cp.getCmd(), cp.getFlags());
-                if (commandProcess == null) {
-                    commandProcess = ExclusiveCommandProcess.getExistingProcess(cp.getCmd());
-                    //the below line is only for testing REMOVE AFTERWARDS!
-                    commandProcess.newFlags(cp.getFlags());
+
+                //commandProcess is null if process already exists
+                AbstractCommandProcess commandProcess = ExclusiveCommandProcess.getInstance(this, cp.getCmd(), cp.getFlags());
+
+                if (cp.getSysCmd().equals(SYS_LAUNCH)) {
+                    if (commandProcess == null) {
+                        launcherOutput = PROCESS_EXIST;
+                    } else {
+                        launcherOutput = commandProcess.launch();
+                        runningProcesses.add(commandProcess);
+                    }
+                } else if (cp.getSysCmd().equals(SYS_SEND_COMMAND)) {
+                    if (commandProcess == null) {
+                        commandProcess = ExclusiveCommandProcess.getExistingProcess(this, cp.getCmd());
+                        if (!runningProcesses.contains(commandProcess)) {
+                            runningProcesses.add(commandProcess);
+                        }
+
+                        launcherOutput = commandProcess.sendCommand(cp.getFlags());
+                    } else {
+                        launcherOutput = PROCESS_NOT_EXIST;
+                    }
                 }
 
-                //TODO: After testing, don't allow existing processes to launch more than once!
-                launcherOutput = commandProcess.launch();
-
-                writer.print(launcherOutput);
+                writer.println(launcherOutput);
                 writer.flush();
 
             } else {
-                writer.println("Invalid command-message.");
+                writer.println("Invalid cmd-msg.");
                 writer.flush();
             }
         }
