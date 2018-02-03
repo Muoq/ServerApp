@@ -6,6 +6,7 @@ import com.muoq.main.util.InputScanner;
 
 import javax.net.ssl.*;
 import java.io.*;
+import java.net.InetAddress;
 import java.net.SocketException;
 import java.security.*;
 import java.security.cert.CertificateException;
@@ -23,6 +24,7 @@ public class ServerApp {
     static final char NUL = (char) 0;
     static final String PROCESS_EXIST = "PAE:";
     static final String LAUNCH_SUCCESS = "LSU:";
+    static final String LAUNCH_FAILURE = "LFA";
     static final String PROCESS_NOT_EXIST = "PNE:";
 
     static final String SYS_LAUNCH = "LCH";
@@ -87,8 +89,6 @@ public class ServerApp {
 
     private void test() {
 
-
-
     }
 
     public static void main(String[] args) {
@@ -103,7 +103,7 @@ public class ServerApp {
 
             SSLServerSocketFactory sslServerSocketFactory = sslContext.getServerSocketFactory();
             try {
-                SSLServerSocket sslServerSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(PORT);
+                SSLServerSocket sslServerSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(PORT, 0, InetAddress.getByName(null));
 
                 while (true) {
                     SSLSocket sslSocket = (SSLSocket) sslServerSocket.accept();
@@ -146,10 +146,10 @@ public class ServerApp {
         private void handleMessage(String message) {
             if (DEBUG) {
                 System.out.println("Message received: " + message.replace(String.valueOf(NUL), "(NUL)"));
-                message = CommandParser.escapeString(message);
             }
 
             String launcherOutput = "";
+            message = CommandParser.escapeString(message);
             CommandParser cp = new CommandParser(message);
             if (cp.isParseSuccess()) {
 
@@ -160,8 +160,13 @@ public class ServerApp {
                     if (commandProcess == null) {
                         launcherOutput = PROCESS_EXIST;
                     } else {
-                        launcherOutput = commandProcess.launch();
-                        runningProcesses.add(commandProcess);
+                        boolean isLaunchSuccess = commandProcess.launch();
+                        if (isLaunchSuccess) {
+                            runningProcesses.add(commandProcess);
+                            launcherOutput = LAUNCH_SUCCESS;
+                        } else {
+                            launcherOutput = LAUNCH_FAILURE;
+                        }
                     }
                 } else if (cp.getSysCmd().equals(SYS_SEND_COMMAND)) {
                     if (commandProcess == null) {

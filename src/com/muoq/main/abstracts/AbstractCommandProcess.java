@@ -13,6 +13,8 @@ import java.util.Map;
 
 public abstract class AbstractCommandProcess {
 
+    static final String END_MSG = String.valueOf((char) 0) + String.valueOf((char) 0);
+
     static int PORT = 14001;
     static String indexFilePath = "/index/cmd-launch-index";
 
@@ -88,9 +90,8 @@ public abstract class AbstractCommandProcess {
         }
     }
 
-    public String launch() {
+    public boolean launch() {
         try {
-
             programInterface = new ProgramInterface();
             Thread interfaceThread = new Thread(programInterface);
             interfaceThread.setName("Inter Process Thread");
@@ -98,26 +99,48 @@ public abstract class AbstractCommandProcess {
 
             Process process = processBuilder.start();
             InputStream processInputStream = process.getInputStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(processInputStream));
 
-            System.out.println(processBuilder.command());
-            String processOut = "";
-            String line;
-            while ((line = reader.readLine()) != null && !line.replace("\n", "").equals("CON")) {
-                System.out.println("line: " + line);
-                processOut += line + "\n";
-            }
-            reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-            while ((line = reader.readLine()) != null) {
-                System.out.println("Error: " + line);
+            byte[] bytes;
+            boolean isConnectSuccess = false;
+
+            long fiftyMillisNano = 50000000L;
+            long timePast = System.nanoTime();
+            while (System.nanoTime() - timePast < fiftyMillisNano) {
+                bytes = new byte[processInputStream.available()];
+
+                int length = processInputStream.read(bytes);
+                StringBuilder processInputBuild = new StringBuilder();
+                for (int i = 0; i < length; i++) {
+                    processInputBuild.append((char) bytes[i]);
+                }
+
+                if (processInputBuild.toString().equals("CON\n")) {
+                    System.out.println("launch success");
+                    isConnectSuccess = true;
+                    break;
+                }
             }
 
-            return processOut;
+//            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+//            String line;
+//            while ((line = reader.readLine()) != null) {
+//                System.out.println("Error: " + line);
+//            }
+
+            if (!isConnectSuccess) {
+                programInterface.close();
+                interfaceThread.join();
+                return false;
+            }
+
+            return true;
         } catch (IOException e) {
+            e.printStackTrace();
+        } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
-        return null;
+        return false;
     }
 
     public void newFlags(String flags) {
@@ -141,7 +164,7 @@ public abstract class AbstractCommandProcess {
     }
 
     protected void handleInput(String input) {
-
+//        System.out.println("input: " + input);
     }
 
     public String sendCommand(String command) {
@@ -157,44 +180,85 @@ public abstract class AbstractCommandProcess {
         Socket localSocket;
         PrintWriter writer;
 
-        public String sendCommand(String command) {
+        private StringBuilder internalBuild, bufferBuild;
+        private boolean scanningForMessages, isResetReady;
+
+        private ProgramInterface() {
+            internalBuild = new StringBuilder();
+            bufferBuild = new StringBuilder();
+        }
+
+        private String sendCommand(String command) {
+            scanningForMessages = true;
+
             writer.println(command);
             writer.flush();
 
-            try {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(localSocket.getInputStream()));
-                String input;
-                StringBuilder builder = new StringBuilder();
-
-                while ((input = reader.readLine()) != null) {
-                    builder.append(input);
+            String message;
+            while ((message = getCompleteBuild()) == null) {
+                try {
+                    Thread.sleep(20);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
+            }
 
-                return builder.toString();
-            } catch (IOException e) {
-                e.printStackTrace();
+            return message.replace(END_MSG, "");
+        }
+
+        private String getCompleteBuild() {
+
+            if (internalBuild.toString().contains(END_MSG)) {
+                String build = internalBuild.toString();
+                internalBuild = new StringBuilder();
+                return build;
             }
 
             return null;
         }
 
+        public void close() {
+            try {
+                localSocket.close();
+
+                writer.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        private synchronized void buildInternal(String line) {
+            if (isResetReady) {
+                bufferBuild = new StringBuilder();
+                isResetReady = false;
+            }
+            if (scanningForMessages) {
+                bufferBuild.append(line);
+            }
+            if (line.equals(END_MSG)) {
+                internalBuild = new StringBuilder(bufferBuild.toString());
+                scanningForMessages = false;
+                isResetReady = true;
+            }
+        }
+
         public void run() {
             try {
-                ServerSocket localServerSocket = new ServerSocket(PORT);
+                ServerSocket localServerSocket = new ServerSocket(PORT, 0, InetAddress.getByName("localhost"));
                 localSocket = localServerSocket.accept();
                 localServerSocket.close();
 
                 writer = new PrintWriter(localSocket.getOutputStream());
+                BufferedReader reader = new BufferedReader(new InputStreamReader(localSocket.getInputStream()));
+
                 writer.println("connect success!");
                 writer.flush();
 
-                BufferedReader reader = new BufferedReader(new InputStreamReader(localSocket.getInputStream()));
-                String input;
-
-                while((input = reader.readLine()) != null) {
-                    handleInput(input);
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    handleInput(line);
+                    buildInternal(line);
                 }
-
             } catch (IOException e) {
                 e.printStackTrace();
             }
