@@ -30,6 +30,7 @@ public abstract class AbstractCommandProcess {
     ProcessBuilder processBuilder;
 
     protected ProgramInterface programInterface;
+    protected boolean isLaunched;
 
     protected List<ServerApp.Client> clientList;
 
@@ -44,6 +45,8 @@ public abstract class AbstractCommandProcess {
 
         clientList = new ArrayList<>();
         clientList.add(client);
+
+        isLaunched = false;
     }
 
     public static boolean isValidCommand(String command) {
@@ -106,7 +109,7 @@ public abstract class AbstractCommandProcess {
             long fiftyMillisNano = 50000000L;
             long timePast = System.nanoTime();
             while (System.nanoTime() - timePast < fiftyMillisNano) {
-                bytes = new byte[processInputStream.available()];
+                bytes = new byte[8];
 
                 int length = processInputStream.read(bytes);
                 StringBuilder processInputBuild = new StringBuilder();
@@ -121,18 +124,13 @@ public abstract class AbstractCommandProcess {
                 }
             }
 
-//            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-//            String line;
-//            while ((line = reader.readLine()) != null) {
-//                System.out.println("Error: " + line);
-//            }
-
             if (!isConnectSuccess) {
                 programInterface.close();
                 interfaceThread.join();
                 return false;
             }
 
+            isLaunched = true;
             return true;
         } catch (IOException e) {
             e.printStackTrace();
@@ -153,6 +151,10 @@ public abstract class AbstractCommandProcess {
             clientList.add(client);
     }
 
+    public boolean hasLaunched() {
+        return isLaunched;
+    }
+
     public static void printIndex() {
         if (commandItems.isEmpty()) {
             initCommandItems();
@@ -164,10 +166,15 @@ public abstract class AbstractCommandProcess {
     }
 
     protected void handleInput(String input) {
-//        System.out.println("input: " + input);
+        for (ServerApp.Client client : clientList) {
+            client.receiveFromProcess(input.replace(END_MSG, ""));
+        }
     }
 
-    public String sendCommand(String command) {
+    public String sendCommand(String command) throws IllegalStateException {
+        if (programInterface == null) {
+            throw new IllegalStateException("Error: Cannot send command to process that has not launched.");
+        }
         return programInterface.sendCommand(command);
     }
 
@@ -181,15 +188,18 @@ public abstract class AbstractCommandProcess {
         PrintWriter writer;
 
         private StringBuilder internalBuild, bufferBuild;
-        private boolean scanningForMessages, isResetReady;
+        private boolean scanningForReturnMessages, isResetReady;
 
         private ProgramInterface() {
+            scanningForReturnMessages = false;
+            isResetReady = false;
+
             internalBuild = new StringBuilder();
             bufferBuild = new StringBuilder();
         }
 
         private String sendCommand(String command) {
-            scanningForMessages = true;
+            scanningForReturnMessages = true;
 
             writer.println(command);
             writer.flush();
@@ -217,7 +227,7 @@ public abstract class AbstractCommandProcess {
             return null;
         }
 
-        public void close() {
+        private void close() {
             try {
                 localSocket.close();
 
@@ -232,12 +242,12 @@ public abstract class AbstractCommandProcess {
                 bufferBuild = new StringBuilder();
                 isResetReady = false;
             }
-            if (scanningForMessages) {
-                bufferBuild.append(line);
+            if (scanningForReturnMessages) {
+                bufferBuild.append(line).append("\n");
             }
             if (line.equals(END_MSG)) {
                 internalBuild = new StringBuilder(bufferBuild.toString());
-                scanningForMessages = false;
+                scanningForReturnMessages = false;
                 isResetReady = true;
             }
         }
@@ -256,7 +266,9 @@ public abstract class AbstractCommandProcess {
 
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    handleInput(line);
+                    if (!scanningForReturnMessages)
+                        handleInput(line);
+
                     buildInternal(line);
                 }
             } catch (IOException e) {

@@ -103,7 +103,7 @@ public class ServerApp {
 
             SSLServerSocketFactory sslServerSocketFactory = sslContext.getServerSocketFactory();
             try {
-                SSLServerSocket sslServerSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(PORT, 0, InetAddress.getByName(null));
+                SSLServerSocket sslServerSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(PORT);
 
                 while (true) {
                     SSLSocket sslSocket = (SSLSocket) sslServerSocket.accept();
@@ -154,10 +154,10 @@ public class ServerApp {
             if (cp.isParseSuccess()) {
 
                 //commandProcess is null if process already exists
-                AbstractCommandProcess commandProcess = ExclusiveCommandProcess.getInstance(this, cp.getCmd(), cp.getFlags());
+                ExclusiveCommandProcess commandProcess = ExclusiveCommandProcess.getInstance(this, cp.getCmd(), cp.getFlags());
 
                 if (cp.getSysCmd().equals(SYS_LAUNCH)) {
-                    if (commandProcess == null) {
+                    if (commandProcess.hasLaunched()) {
                         launcherOutput = PROCESS_EXIST;
                     } else {
                         boolean isLaunchSuccess = commandProcess.launch();
@@ -169,13 +169,16 @@ public class ServerApp {
                         }
                     }
                 } else if (cp.getSysCmd().equals(SYS_SEND_COMMAND)) {
-                    if (commandProcess == null) {
-                        commandProcess = ExclusiveCommandProcess.getExistingProcess(this, cp.getCmd());
-                        if (!runningProcesses.contains(commandProcess)) {
-                            runningProcesses.add(commandProcess);
-                        }
+                    if (commandProcess.hasLaunched()) {
+                        if (commandProcess.hasLaunched()) {
+                            if (!runningProcesses.contains(commandProcess)) {
+                                runningProcesses.add(commandProcess);
+                            }
 
-                        launcherOutput = commandProcess.sendCommand(cp.getFlags());
+                            launcherOutput = commandProcess.sendCommand(cp.getFlags());
+                        } else {
+                            launcherOutput = PROCESS_NOT_EXIST;
+                        }
                     } else {
                         launcherOutput = PROCESS_NOT_EXIST;
                     }
@@ -188,6 +191,11 @@ public class ServerApp {
                 writer.println("Invalid cmd-msg.");
                 writer.flush();
             }
+        }
+
+        public void receiveFromProcess(String message) {
+            writer.println(message);
+            writer.flush();
         }
 
         public void receive(String message) {

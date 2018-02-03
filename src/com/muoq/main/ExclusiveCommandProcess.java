@@ -23,7 +23,8 @@ public class ExclusiveCommandProcess extends AbstractCommandProcess {
 
         for (Map.Entry<String, ExclusiveCommandProcess> set : existingExclusiveProcesses.entrySet()) {
             if (commandItems.get(command).equals(set.getValue().bin)) {
-                return null;
+                set.getValue().addClient(client);
+                return set.getValue();
             }
         }
 
@@ -31,12 +32,6 @@ public class ExclusiveCommandProcess extends AbstractCommandProcess {
         processObject.bin = commandItems.get(command);
         existingExclusiveProcesses.put(command, processObject);
         return processObject;
-    }
-
-    public static ExclusiveCommandProcess getExistingProcess(ServerApp.Client client, String command) {
-        ExclusiveCommandProcess existingProcess = existingExclusiveProcesses.get(command);
-        existingProcess.addClient(client);
-        return existingProcess;
     }
 
     //TODO: Override launch() and only permit it to run once
