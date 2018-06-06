@@ -106,9 +106,9 @@ public abstract class AbstractCommandProcess {
             byte[] bytes;
             boolean isConnectSuccess = false;
 
-            long fiftyMillisNano = 50000000L;
+            long connectTimeout = 80000000L;
             long timePast = System.nanoTime();
-            while (System.nanoTime() - timePast < fiftyMillisNano) {
+            while (System.nanoTime() - timePast < connectTimeout) {
                 bytes = new byte[8];
 
                 int length = processInputStream.read(bytes);
@@ -125,16 +125,14 @@ public abstract class AbstractCommandProcess {
             }
 
             if (!isConnectSuccess) {
+                interfaceThread.interrupt();
                 programInterface.close();
-                interfaceThread.join();
                 return false;
             }
 
             isLaunched = true;
             return true;
         } catch (IOException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
@@ -168,6 +166,7 @@ public abstract class AbstractCommandProcess {
     protected void handleInput(String input) {
         for (ServerApp.Client client : clientList) {
             client.receiveFromProcess(input.replace(END_MSG, ""));
+            System.out.println("Sent to client: " + input.replace(END_MSG, ""));
         }
     }
 
@@ -229,9 +228,10 @@ public abstract class AbstractCommandProcess {
 
         private void close() {
             try {
-                localSocket.close();
-
-                writer.close();
+                if (localSocket != null)
+                    localSocket.close();
+                if (writer != null)
+                    writer.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }
